@@ -2,14 +2,14 @@ const bands = require('express').Router()
 const db = require('../models')
 const { Op } =require('sequelize')
 
-const { Band } = db
+const { Band, Meet_Greet, Event, Set_Time } = db
 
 // FIND BY BAND NAME
 
 bands.get('/', async (req, res) => {
 
     try {
-        console.log(req.query.name)
+ 
         const foundBands = await Band.findAll({
             order: [ ['available_start_time', 'ASC'] ],
             where: {
@@ -23,29 +23,32 @@ bands.get('/', async (req, res) => {
 })
 
 
-
-// FIND ALL BANDS
-bands.get('/', async (req, res) => {
-
-    try {
-
-        const foundBands = await Band.findAll({
-            order: [ ['available_start_time', 'ASC'] ]
-        })
-        res.status(200).json(foundBands)
-
-    } catch (error) {
-
-        res.status(500).json(error)
-    }
-})
-
-
 // FIND A SPECIFIC BAND
-bands.get('/:id', async (req, res) => {
+bands.get('/:name', async (req, res) => {
     try {
         const foundBand = await Band.findOne({
-            where: { band_id: req.params.id }
+            // find the band
+            where: { name: req.params.name },
+            // INCLUDE will bring in related table
+            include:[ 
+                {
+                    // find all meet and greet for this band
+                    model: Meet_Greet, as: 'meet_greets',
+                    include: { 
+                        // find all event at these meet and greets or by particular event
+                        model:Event, as: "event",
+                        where: { name: { [Op.like]: `%${req.query.event ? req.query.event: ''}%` }} 
+                    }
+
+                },
+                {
+                    // find all set time for this band
+                    model: Set_Time, as: 'set_times',
+                    // find all event at these set times or by particular event
+                    include: { model:Event, as: "event" },
+                    where: { name: { [Op.like]: `%${req.query.event ? req.query.event: ''}%` }} 
+                }
+            ]
         })
         res.status(200).json(foundBand)
     } catch (error) {
@@ -75,7 +78,8 @@ bands.put('/:id', async (req, res) => {
         const updateBands = await Band.update(req.body, {
             where: {
                 band_id: req.params.id
-            }
+            },
+            
         })
 
         res.status(200).json({
